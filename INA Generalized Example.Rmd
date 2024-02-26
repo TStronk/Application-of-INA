@@ -1,0 +1,350 @@
+---
+title: "INA General Examples"
+author: "Theodore Stronkowsky IV"
+date: "2024-02-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Useful/Necessary Libraries
+
+
+```{r}
+library(ggplot2)
+library(ggraph)
+library(tidygraph)
+library(tidyr)
+library(tidyselect)
+library(tidyverse)
+library(igraph)
+library(grid)
+library(graphlayouts)
+library(geodata)
+library(INA)
+```
+
+
+## Cleaning Data and genlocs function
+
+Generates longitudinal and latitudinal coordinates for each node.
+
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Step 0: Data Cleaning (NEEDS to be done before using INA functions)
+# This would include checking for NA values, duplicates, ensuring proper data types,
+# and normalizing data if necessary.
+
+# Step 1: Generate random geographic locations of nodes
+genlocs_data <- genlocs(xrange4=c(0,50), yrange4=c(0,50), numnodes4=100, randgeo4=TRUE)
+```
+
+## initsvals function
+Determine intial status of threat at node based on pest extent and managment preactice
+
+```{r}
+# Step 2: Initialize the network with random values
+initvals_data <- initvals(genlocs_data, dist4='random', init.p4=0.1, norp4='prop', plotmp=TRUE)
+```
+
+## genmovnet function
+Generates adjacency matrix for movement.
+
+```{r}
+# Step 3: Generate a random movement network based on the locations
+# Needs work refining the network
+genmovnet_data <- genmovnet(genlocs_data, amdist4='random', amrandp4=0.01, iplot=TRUE)
+```
+
+## setup2 function
+Set up the initial conditions for INA scenario analysis and multisame2
+
+
+```{r}
+# Step 4: Setup starting conditions for INA scenario analysis
+setup2_data <- setup2(
+  maneffmean3s = 0.5,
+  maneffsd3s = 0.5,
+  maneffthresh3 = 0.5,
+  sampeffort3 = 1,
+  usethreshman3 = TRUE,
+  readgeocoords3s = FALSE,
+  geocoords3s = NULL, 
+  xrange3 = c(0,50),
+  yrange3 = c(0,50),
+  numnodes3 = 100,
+  randgeo3 = TRUE,
+  readinitinfo3 = FALSE,
+  initinfo3 = NULL, 
+  initinfo.dist3 = 'random',
+  initinfo.n3 = 5,
+  initinfo.norp3 = 'num',
+  initinfo.p3 = NA, 
+  readinitbio3 = FALSE,
+  initbio3 = NULL, 
+  initbio.dist3 = 'random',
+  initbio.n3 = 5,
+  initbio.norp3 = 'num',
+  initbio.p3 = NA, 
+  plotmp = TRUE
+)
+```
+## estab function
+Estimates effects of managment practice on pest extent/establishment based on the initial status and locations
+
+
+```{r}
+# Step 5: Estimate the establishment probability at each node
+estab_data <- estab(
+  decvec = rep(1, nrow(genlocs_data)), 
+  dispvec = rep(1, nrow(genlocs_data)), 
+  geocoords4n = genlocs_data,  # Here we pass the matrix directly
+  readprobestabvec4 = FALSE, 
+  probestabmean4 = 0.5, 
+  probestabsd4 = 0.1, 
+  maneffdir4 = 'decrease_estab', 
+  maneffmean4n = 0.1, 
+  maneffsd4n = 0.1, 
+  plotmp = TRUE
+)
+```
+## onestart function
+Evaluate individual nodes for invasion detection value
+
+```{r}
+# Step 6: Simulate an invasion detection starting from a single node
+onestart_data <- onestart(adjmat=genmovnet_data, start.choice=2, stoch=FALSE)
+```
+
+## multistart function
+Evaluate multiple nodes for invasion detection value 
+
+```{r}
+# Step 7: Evaluate multiple starts of invasion detection
+multistart_data <- multistart(adjmat=genmovnet_data, stoch=FALSE)
+```
+
+## smartsurv function
+Evaluates nodes for invaion detection value based on multiple realizations.
+
+```{r}
+# Step 8: Evaluate survival probabilities in the network
+smartsurv_data <- smartsurv(adjmat=genmovnet_data, stoch=FALSE, nrealz=10)
+
+print(smartsurv_data)
+```
+
+## smartsurv.weight function
+
+includes probabilities for potential starting nodes for invasion other than that same as smartsurv
+
+```{r}
+# Step 9: Incorporate weights into the survival analysis
+weights <- runif(nrow(genmovnet_data))  # Random weights for example
+smartsurv_weight_data <- smartsurv.weight(ss.out=smartsurv_data, adjmat=genmovnet_data, wtvec=weights)
+
+print(smartsurv_weight_data)
+```
+
+## spreadstep function
+Generates a vector of status where each entry is the status of the node
+
+```{r}
+# Step 10: Simulate a spread step in the network
+spreadstep_data <- spreadstep(amat=genmovnet_data, vect1=initvals_data)
+
+print(spreadstep_data)
+```
+
+## makedec function
+Generates plots based on coordinates of nodes that should adopt managment practices or new practices
+
+```{r}
+# Step 11: Make management decisions based on the communication vector
+makedec_data <- makedec(comvec=sample(c(0, 1), size=100, replace=TRUE), 
+                        geocoords4n= genlocs_data, 
+                        readprobadoptvec4=FALSE, 
+                        probadoptmean4=0.5, 
+                        probadoptsd4=0.1, 
+                        plotmp=TRUE)
+```
+## nsteps2
+
+Determines bioentity establishment at each node
+
+```{r}
+
+# Step 12: Simulate multiple time steps in the network
+nsteps_data <- ntsteps2(nsteps=3, 
+                        infon=TRUE, 
+                        geocoords3n=genlocs_data, 
+                        vect1cn=rep(1, length(genlocs_data)/2), 
+                        vect1dn=rep(0, length(genlocs_data)/2), 
+                        readseam3=FALSE, 
+                        seamdist3='powerlaw', 
+                        seampla3=1, 
+                        seamplb3=1, 
+                        readbpam3=FALSE, 
+                        bpamdist3='powerlaw', 
+                        bpampla3=1, 
+                        bpamplb3=1, 
+                        probadoptmean3=0.5, 
+                        probadoptsd3=0.1, 
+                        probestabmean3=0.5, 
+                        probestabsd3=0.1, 
+                        maneffdir3='decrease_estab', 
+                        maneffmean3n=0.5, 
+                        maneffsd3n=0.1, 
+                        readprobestabvec3=FALSE, 
+                        readprobadoptvec3=FALSE, 
+                        plotmpn=TRUE)
+```
+## reduce_nodes_to_focus
+
+Reduces the number of nodes in the network to those which are linked to a set of key nodes
+
+```{r}
+# Step 13: Reduce the network to focus on key nodes
+key_nodes <- c(1, 10)  
+j <- genmovnet_data 
+
+reduce_data <- reduce_nodes_to_focus(startmat=j, 
+                                     maxdist=0, 
+                                     keynodes=key_nodes, 
+                                     tofrom='to')
+
+# I HAVE NOT BEEN ABLE TO IMPLEMENT THE RUDUCED NETWORK I WOULD HAVE TO REDUCE MANY OTHER INFORMATIONS VECTORS USED IN INA AND MULTISAME
+# FOR NOW REDUCED IS THE ENTIRE ADJACENY MATRIX
+
+```
+
+## INAscene function
+
+Evaluates different scenarios in the network. For example the outputs are things like communication threshold and probability of managment adoptiona and bioentity establishment
+
+```{r}
+# Step 14: Perform an INA scenario
+# For demonstration purposes; replace with your actual data currently random data from the matrix of genlocs
+init_info_vector <- sample(c(0, 1), size=nrow(genlocs_data), replace=TRUE)
+init_bio_vector <- sample(c(0, 1), size=nrow(genlocs_data), replace=TRUE)
+
+
+INAscene_data <- INAscene(
+  nreals=3, 
+  ntimesteps=3, 
+  doplot=TRUE, 
+  readgeocoords=TRUE, 
+  geocoords=genlocs_data,  
+  numnodes=NA, 
+  xrange=NA, 
+  yrange=NA, 
+  randgeo=FALSE, 
+  readinitinfo=TRUE, 
+  initinfo=init_info_vector,  
+  readinitbio=TRUE, 
+  initbio=init_bio_vector,  
+  readseam=TRUE, 
+  seam=j,     # For some reason you have to reaname the adjaceny matrix to i
+  readbpam=FALSE, 
+  bpamdist='random', 
+  bpamrandp=0.1, 
+  readprobadoptvec=FALSE, 
+  probadoptmean=0.1, 
+  probadoptsd=0.1, 
+  readprobestabvec=FALSE, 
+  probestabmean=0.1, 
+  probestabsd=0.1, 
+  maneffdir='decrease_estab', 
+  maneffmean=0.5, 
+  maneffsd=0.1, 
+  usethreshman=FALSE
+)
+```
+
+## multisame2 function
+
+runs INA multiple times under different initial conditions
+
+```{r}
+
+# Step 15: Multi-scenario analysis using multsame2
+multsame2_data <- multsame2(nreals2=10, 
+                            ntimesteps2=3, 
+                            usethreshman2=FALSE, 
+                            readgeocoords2=TRUE, 
+                            geocoords2=genlocs_data, 
+                            maneffdir2='decrease_estab', 
+                            maneffmean2=0.5, 
+                            maneffsd2=0.1, 
+                            maneffthresh2=0.5, 
+                            sampeffort2=1, 
+                            readinitinfo2=TRUE, 
+                            initinfo2=init_info_vector, 
+                            readinitbio2=TRUE, 
+                            initbio2=init_bio_vector, 
+                            readseam2=TRUE,                             
+                            seam2=j, 
+                            doplot2=TRUE,
+                            readprobadoptvec2 = FALSE,
+                            probadoptmean2 = 0.5,
+                            probadoptsd2 = 0.1,
+                            readbpam2 = FALSE,
+                            bpamdist2 = 'random',
+                            bpamrandp2 =0.5,
+                            readprobestabvec2=FALSE,
+                            probestabmean2 = 0.5,
+                            probestabsd=0.5
+
+                            )
+
+# Better visualize the graphs also find a way to compare the diffrent visualizations
+
+
+```
+# layerplot and squish function
+Plots the reduces bio and social networks with the added node information and revisualize the networks
+
+```{r}
+
+# Step 16: Visualization with layerplot and squish
+
+#Need to Normalize data for layerplot
+normalize <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+
+
+j_normalized <- apply(j, 2, normalize)  
+genlocs_data_normalized <- apply(genlocs_data, 2, normalize)  
+
+upcoords <- genlocs_data_normalized
+lowcoords <- genlocs_data_normalized
+
+
+layerplot(upmat=j_normalized, lowmat=j_normalized, upcoords=upcoords, lowcoords=lowcoords, yflat=0.5, xover=0.5, htdif=1) # one color for bioentity and anotehr for social network
+
+# Using squish for visualization
+Z1 <- genlocs_data
+plot(Z1, xlim=c(0,50), ylim=c(0,50), main="Original Coordinates")
+Z2 <- squish(Z1)
+plot(Z2, xlim=c(0,50), ylim=c(0,50), main="Squished Coordinates")
+
+
+
+
+# TO-DO
+
+# Improve visualizations and delivery of information from visualization
+
+# Further investigate the use of these functions
+
+
+
+```
+
